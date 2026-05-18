@@ -1,0 +1,8 @@
+[project]
+name = "bluekeep"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "impacket>=0.13.0",
+    "pyopenssl>=26.2.0",
+]
