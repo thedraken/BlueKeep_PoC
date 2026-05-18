@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 import socket
 import binascii
+import OpenSSL
 from impacket.structure import Structure
-from OpenSSL import SSL
 
 #Some details taken from https://github.com/Ekultek/BlueKeep
 
@@ -96,12 +96,12 @@ def verify_bluekeep_baseline(ip : str, port : int):
 
         #Downgrade the TLS to TLSv1
         #Reinitialise pyOpenSSL Context utilising TLSv1_METHOD
-        ctx = SSL.Context(SSL.TLSv1_METHOD)
+        ctx = OpenSSL.SSL.Context(OpenSSL.SSL.TLSv1_METHOD)
         #Enforce legacy ciphers to allow smooth handshake with unpatched Win7
         ctx.set_cipher_list(b'DEFAULT:@SECLEVEL=0:AES128-SHA:AES256-SHA')
 
         #Establish TLS connection over the active socket
-        tls = SSL.Connection(ctx, sock)
+        tls = OpenSSL.SSL.Connection(ctx, sock)
         tls.set_connect_state()
         tls.do_handshake()
         print("TLS/SSL handshake successfully completed via pyOpenSSL context.")
@@ -117,11 +117,22 @@ def verify_bluekeep_baseline(ip : str, port : int):
 
         #A patched Windows 7 would instead close the sequence, and we would have hit our exception block with
         # an unhandled socket disconnection
-        print("Closing validation sequence safely. Baseline environment verified.")
+        print("Connection successful.")
         sock.close()
-
+    except ConnectionRefusedError as e:
+        print(f"Connection Refused error: {e}")
+    except KeyError as e:
+        print(f"KeyError error: {e}")
+    except binascii.Error as e:
+        print(f"Binascii error: {e}")
+    except socket.gaierror as e:
+        print(f"Socket error: {e}")
+    except OpenSSL.SSL.SysCallError as e:
+        print(f"OpenSSL.SysCallError: {e}")
+    except OpenSSL.SSL.Error as e:
+        print(f"OpenSSL.Error: {e}")
     except Exception as e:
-        print(f"Execution failed during protocol exchange: {e}")
+        print(f"Generic exception: {e}")
 
 
 def main():
