@@ -68,6 +68,7 @@ def verify_bluekeep_baseline(ip : str, port : int):
     tpkt['TPDU'] = tpdu.getData()
 
     #Complete static MCS Connect Initial PDU with precise length descriptors
+    #4d535f54313230 denotes the MS_T120 channel and is our exploit
     mcs_connect_init_pdu = binascii.unhexlify(
         "030001ee02f0807f658201e20401010401010101ff30190201220201020201000201010201000201010202ffff02010230190201"
         "0102010102010102010102010002010102020420020102301c0202ffff0202fc170202ffff0201010201000201010202ffff0201"
