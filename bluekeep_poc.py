@@ -92,7 +92,7 @@ def verify_bluekeep_baseline(ip : str, port : int):
         #Waiting for the response with a Connection Confirm (CC) packet.
         response = sock.recv(1024)
         #If a clean response it proves the RDP service is active available to switch to an encrypted TLS tunnel
-        print(f"Received {hex(len(response))} bytes response baseline.")
+        print(f"Received {hex(len(response))} bytes response.")
 
         #Downgrade the TLS to TLSv1
         #Reinitialise pyOpenSSL Context utilising TLSv1_METHOD
@@ -104,7 +104,7 @@ def verify_bluekeep_baseline(ip : str, port : int):
         tls = OpenSSL.SSL.Connection(ctx, sock)
         tls.set_connect_state()
         tls.do_handshake()
-        print("TLS/SSL handshake successfully completed via pyOpenSSL context.")
+        print("TLS/SSL handshake completed.")
 
         #Send the verified structural packet
         print("Sending Client MCS Connect Initial PDU.")
