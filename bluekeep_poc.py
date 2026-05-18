@@ -4,8 +4,10 @@ import binascii
 from impacket.structure import Structure
 from OpenSSL import SSL
 
+#Some details taken from https://github.com/Ekultek/BlueKeep
 
-# Impacket structures for proper X.224 protocol encapsulation
+#Impacket structures for proper X.224 protocol encapsulation
+#ISO 8073 / X.224 Transport Service
 class TPKT(Structure):
     commonHdr = (
         ('Version', 'B=3'),
@@ -15,7 +17,8 @@ class TPKT(Structure):
         ('TPDU', ':=""'),
     )
 
-
+#Transport Protocol Data Unit
+#Controls the command being sent
 class TPDU(Structure):
     commonHdr = (
         ('LengthIndicator', 'B=len(VariablePart)+1'),
@@ -38,7 +41,8 @@ class CR_TPDU(Structure):
         ('Length', '<H=8'),
     )
 
-
+#RDP Negotiation Request
+#Opens the RDP session with the server
 class RDP_NEG_REQ(CR_TPDU):
     structure = (
         ('requestedProtocols', '<L'),
@@ -50,31 +54,19 @@ class RDP_NEG_REQ(CR_TPDU):
             self['Type'] = 1
 
 
-def info(string):
-    print(f"[ \033[32m+\033[0m ] {string}")
-
-
-def error(string):
-    print(f"[ \033[31m!\033[0m ] {string}")
-
-
-def parse_hex(hex_string):
-    return binascii.unhexlify(hex_string)
-
-
 def verify_bluekeep_baseline(ip : str, port : int):
-    # Construct the native X.224 connection request
+    #Construct the native X.224 connection request
     tpkt = TPKT()
     tpdu = TPDU()
     rdp_neg = RDP_NEG_REQ()
-    rdp_neg['Type'] = 1  # TYPE_RDP_NEG_REQ
-    rdp_neg['requestedProtocols'] = 1  # PROTOCOL_SSL
+    rdp_neg['Type'] = 1  #TYPE_RDP_NEG_REQ
+    rdp_neg['requestedProtocols'] = 1  #PROTOCOL_SSL
     tpdu['VariablePart'] = rdp_neg.getData()
-    tpdu['Code'] = 0xe0  # TPDU_CONNECTION_REQUEST
+    tpdu['Code'] = 0xe0  #TPDU_CONNECTION_REQUEST
     tpkt['TPDU'] = tpdu.getData()
 
-    # Complete static MCS Connect Initial PDU with precise length descriptors
-    mcs_connect_init_pdu = parse_hex(
+    #Complete static MCS Connect Initial PDU with precise length descriptors
+    mcs_connect_init_pdu = binascii.unhexlify(
         "030001ee02f0807f658201e20401010401010101ff30190201220201020201000201010201000201010202ffff02010230190201"
         "0102010102010102010102010002010102020420020102301c0202ffff0202fc170202ffff0201010201000201010202ffff0201"
         "0204820181000500147c00018178000800100001c00044756361816a01c0ea000a0008008007380401ca03aa09040000b11d0000"
@@ -88,38 +80,46 @@ def verify_bluekeep_baseline(ip : str, port : int):
     )
 
     try:
-        info(f"Connecting to RDP service on {ip}:{port}")
+        print(f"Connecting to RDP service on {ip}:{port}")
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.connect((ip, port))
 
-        info("Sending Client Connection Request...")
+        print("Sending Client Connection Request")
+        #Opens a TCP socket and sends the RDP_NEG_REQ wrapper to the server.
         sock.sendall(tpkt.getData())
+        #Waiting for the response with a Connection Confirm (CC) packet.
         response = sock.recv(1024)
-        info(f"Received {hex(len(response))} bytes response baseline.")
+        #If a clean response it proves the RDP service is active available to switch to an encrypted TLS tunnel
+        print(f"Received {hex(len(response))} bytes response baseline.")
 
-        # Reinitialize pyOpenSSL Context utilizing TLSv1_METHOD
+        #Downgrade the TLS to TLSv1
+        #Reinitialize pyOpenSSL Context utilizing TLSv1_METHOD
         ctx = SSL.Context(SSL.TLSv1_METHOD)
-
-        # Enforce legacy ciphers to allow smooth handshake with unpatched Win7
+        #Enforce legacy ciphers to allow smooth handshake with unpatched Win7
         ctx.set_cipher_list(b'DEFAULT:@SECLEVEL=0:AES128-SHA:AES256-SHA')
 
-        # Establish TLS connection over the active socket
+        #Establish TLS connection over the active socket
         tls = SSL.Connection(ctx, sock)
         tls.set_connect_state()
         tls.do_handshake()
-        info("TLS/SSL handshake successfully completed via pyOpenSSL context.")
+        print("TLS/SSL handshake successfully completed via pyOpenSSL context.")
 
-        # Send the verified structural packet
-        info("Sending Client MCS Connect Initial PDU...")
+        #Send the verified structural packet
+        print("Sending Client MCS Connect Initial PDU.")
+        #Send the MCS Connect Initial PDU, which verifies BlueKeep as it requests to bind a channel called MS_T120.
         tls.sendall(mcs_connect_init_pdu)
+        #If we get bytes back, MS_T120 has been opened. MS_T120 is only used for internal housekeeping,
+        # so shows BlueKeep in action
         returned_packet = tls.recv(1024)
-        info(f"Received {hex(len(returned_packet))} bytes from target.")
+        print(f"Received {hex(len(returned_packet))} bytes from target.")
 
-        info("Closing validation sequence safely. Baseline environment verified.")
+        #A patched Windows 7 would instead close the sequence and we would have hit our exception block with
+        # an unhandled socket disconnection
+        print("Closing validation sequence safely. Baseline environment verified.")
         sock.close()
 
     except Exception as e:
-        error(f"Execution failed during protocol exchange: {e}")
+        print(f"Execution failed during protocol exchange: {e}")
 
 
 def main():
