@@ -8,7 +8,7 @@ from OpenSSL import SSL
 
 #Impacket structures for proper X.224 protocol encapsulation
 #ISO 8073 / X.224 Transport Service
-class TPKT(Structure):
+class Tpkt(Structure):
     commonHdr = (
         ('Version', 'B=3'),
         ('Reserved', 'B=0'),
@@ -19,7 +19,7 @@ class TPKT(Structure):
 
 #Transport Protocol Data Unit
 #Controls the command being sent
-class TPDU(Structure):
+class Tpdu(Structure):
     commonHdr = (
         ('LengthIndicator', 'B=len(VariablePart)+1'),
         ('Code', 'B=0'),
@@ -30,8 +30,10 @@ class TPDU(Structure):
         Structure.__init__(self, data)
         self['VariablePart'] = ''
 
-
-class CR_TPDU(Structure):
+#Connection Request Transport Protocol Data Unit
+#part of the X.224 protocol
+#RDP needs it for initialisation of the request
+class CrTpdu(Structure):
     commonHdr = (
         ('DST-REF', '<H=0'),
         ('SRC-REF', '<H=0'),
@@ -43,22 +45,22 @@ class CR_TPDU(Structure):
 
 #RDP Negotiation Request
 #Opens the RDP session with the server
-class RDP_NEG_REQ(CR_TPDU):
+class RdpNegReq(CrTpdu):
     structure = (
         ('requestedProtocols', '<L'),
     )
 
     def __init__(self, data=None):
-        CR_TPDU.__init__(self, data)
+        CrTpdu.__init__(self, data)
         if data is None:
             self['Type'] = 1
 
 
 def verify_bluekeep_baseline(ip : str, port : int):
     #Construct the native X.224 connection request
-    tpkt = TPKT()
-    tpdu = TPDU()
-    rdp_neg = RDP_NEG_REQ()
+    tpkt = Tpkt()
+    tpdu = Tpdu()
+    rdp_neg = RdpNegReq()
     rdp_neg['Type'] = 1  #TYPE_RDP_NEG_REQ
     rdp_neg['requestedProtocols'] = 1  #PROTOCOL_SSL
     tpdu['VariablePart'] = rdp_neg.getData()
@@ -93,7 +95,7 @@ def verify_bluekeep_baseline(ip : str, port : int):
         print(f"Received {hex(len(response))} bytes response baseline.")
 
         #Downgrade the TLS to TLSv1
-        #Reinitialize pyOpenSSL Context utilizing TLSv1_METHOD
+        #Reinitialise pyOpenSSL Context utilising TLSv1_METHOD
         ctx = SSL.Context(SSL.TLSv1_METHOD)
         #Enforce legacy ciphers to allow smooth handshake with unpatched Win7
         ctx.set_cipher_list(b'DEFAULT:@SECLEVEL=0:AES128-SHA:AES256-SHA')
@@ -113,7 +115,7 @@ def verify_bluekeep_baseline(ip : str, port : int):
         returned_packet = tls.recv(1024)
         print(f"Received {hex(len(returned_packet))} bytes from target.")
 
-        #A patched Windows 7 would instead close the sequence and we would have hit our exception block with
+        #A patched Windows 7 would instead close the sequence, and we would have hit our exception block with
         # an unhandled socket disconnection
         print("Closing validation sequence safely. Baseline environment verified.")
         sock.close()
